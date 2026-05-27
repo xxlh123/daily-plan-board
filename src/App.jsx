@@ -351,6 +351,17 @@ function buildDownload(data) {
   return URL.createObjectURL(blob);
 }
 
+function isValidBoardBackup(data) {
+  return (
+    data &&
+    typeof data === "object" &&
+    Array.isArray(data.boards) &&
+    Array.isArray(data.projects) &&
+    Array.isArray(data.tasks) &&
+    Array.isArray(data.logs)
+  );
+}
+
 export default function DynamicDailyPlanBoard() {
   const fileInputRef = useRef(null);
   const [boards, setBoards] = useState(initialBoards);
@@ -638,15 +649,19 @@ export default function DynamicDailyPlanBoard() {
   };
 
   const exportBackup = () => {
-    const url = buildDownload({
-      version: 2,
-      exportedAt: new Date().toISOString(),
-      boards,
-      projects,
-      tasks,
-      logs,
-      timer
-    });
+    const fallbackData = { boards, projects, tasks, logs, timer };
+    const savedData = localStorage.getItem(STORAGE_KEY);
+    let backupData = fallbackData;
+    try {
+      backupData = savedData ? JSON.parse(savedData) : fallbackData;
+    } catch (error) {
+      backupData = fallbackData;
+    }
+    if (!savedData || !isValidBoardBackup(backupData)) {
+      backupData = fallbackData;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(fallbackData));
+    }
+    const url = buildDownload(backupData);
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download = `daily-plan-backup-${todayKey()}.json`;
@@ -702,20 +717,14 @@ export default function DynamicDailyPlanBoard() {
     if (!file) return;
     try {
       const parsed = JSON.parse(await file.text());
-      if (!Array.isArray(parsed.boards) || !Array.isArray(parsed.projects) || !Array.isArray(parsed.tasks)) {
+      if (!isValidBoardBackup(parsed)) {
         throw new Error("备份文件格式不正确");
       }
-      if (!window.confirm("导入备份会覆盖当前看板、项目、任务和日志。确定导入？")) return;
-      setBoards(parsed.boards);
-      setProjects(parsed.projects);
-      setTasks(parsed.tasks.map(normalizeTask));
-      setLogs(Array.isArray(parsed.logs) ? parsed.logs : []);
-      setTimer(normalizeTimer(parsed.timer, parsed.tasks));
-      setProjectFilter("全部");
-      setQuery("");
-      setEditingTaskId(null);
+      if (!window.confirm("导入会覆盖当前本地数据。确定继续？")) return;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+      window.location.reload();
     } catch (error) {
-      window.alert(`导入失败：${error.message}`);
+      window.alert("备份文件格式不正确");
     }
   };
 
@@ -744,11 +753,11 @@ export default function DynamicDailyPlanBoard() {
             <div className="flex min-w-0 flex-wrap gap-2">
               <Button onClick={exportBackup} variant="outline" className="rounded-2xl">
                 <Download className="mr-2 h-4 w-4" />
-                导出备份
+                导出数据
               </Button>
               <Button onClick={() => fileInputRef.current?.click()} variant="outline" className="rounded-2xl">
                 <Upload className="mr-2 h-4 w-4" />
-                导入备份
+                导入数据
               </Button>
               <Button onClick={resetBoard} variant="outline" className="rounded-2xl text-red-600 hover:bg-red-50">
                 <RefreshCcw className="mr-2 h-4 w-4" />
