@@ -1,0 +1,15 @@
+node_modules
+dist
+.env
+.env.local
+npm-debug.log*
+vite.log
+vite.out.log
+vite.err.log
+dev-server.log
+vite.dev.out.log
+vite.dev.err.log
+node_modules
+dist
+.env
+.DS_Store
